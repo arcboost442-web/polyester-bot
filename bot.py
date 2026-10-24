@@ -66,8 +66,19 @@ async def place_maker_order(client, symbol, side, qty, round_num, name, i):
         await asyncio.sleep(MAKER_CANCEL_AFTER)
         try:
             await client.orders.cancel(order_id=order_id, symbol=symbol)
+            # Tidak filled -> fallback ke market order
+            fallback_id = f"fallback-{name}-{round_num}-{int(time.time()*1000)}-{i}"
+            result2 = await client.orders.create(
+                symbol=symbol,
+                side=side,
+                order_type="market",
+                tif="ioc",
+                qty=qty,
+                client_order_id=fallback_id,
+            )
+            print(f"   [FALLBACK] [{name}] MARKET {side.upper():4} {qty} {symbol} -> {result2.status}")
         except Exception:
-            pass
+            pass  # sudah filled oleh maker, tidak perlu fallback
         return True
     except Exception as e:
         print(f"   [ERR] [{name}] Gagal maker {side} {symbol}: {str(e)[:80]}")
