@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 import random
@@ -7,7 +8,7 @@ from pathlib import Path
 from polyester import AsyncPolyester
 
 # ==================== PENGATURAN ====================
-ACCOUNTS_FILE = "accounts.json"
+ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
 SYMBOLS = ["LTC-USDT", "SOL-USDC"]
 ORDERS_PER_ACCOUNT = 20
@@ -29,6 +30,9 @@ def load_accounts():
     if not path.exists():
         print(f"❌ File {ACCOUNTS_FILE} tidak ditemukan!")
         return []
+    accounts_json = os.environ.get("ACCOUNTS_JSON")
+    if accounts_json:
+        return json.loads(accounts_json)
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
