@@ -24,7 +24,11 @@ LOOP_DELAY_MIN = 30
 LOOP_DELAY_MAX = 90
 
 MAKER_MODE = True
-MAKER_CANCEL_AFTER = 2  # diperkecil dari 5 ke 2 detik
+MAKER_CANCEL_AFTER = 2
+
+DISTRIBUTE_INTERVAL = 120   # cek dan distribute tiap 2 menit
+DISTRIBUTE_RESERVE = 50     # sisakan 50 USDC di akun utama
+DISTRIBUTE_ASSET_ID = 2     # USDC
 # ====================================================
 
 
@@ -65,15 +69,12 @@ async def place_maker_order(client, symbol, side, qty, round_num, name, i):
 
         await asyncio.sleep(MAKER_CANCEL_AFTER)
 
-        # Cek status dulu sebelum cancel
         try:
             order_status = await client.orders.get(order_id=order_id, symbol=symbol)
-
             if order_status.status in ("filled", "partially_filled"):
                 print(f"   [FILLED] [{name}] Order sudah fill via maker, skip fallback")
                 return True
 
-            # Belum fill -> cancel lalu langsung market
             await client.orders.cancel(order_id=order_id, symbol=symbol)
             print(f"   [CANCEL] [{name}] Belum fill, fallback ke market order")
 
@@ -89,7 +90,6 @@ async def place_maker_order(client, symbol, side, qty, round_num, name, i):
             print(f"   [MARKET] [{name}] MARKET {side.upper():4} {qty} {symbol} -> {result2.status}")
 
         except Exception:
-            # Cancel error = sudah filled
             print(f"   [FILLED] [{name}] Order fill saat dicoba cancel")
 
         return True
@@ -184,6 +184,56 @@ async def run_account_loop(account: dict):
         await asyncio.sleep(delay)
 
 
+async def auto_distribute(accounts: list):
+    """Distribute saldo USDC dari akun utama ke subaccount secara otomatis."""
+    main_acc = accounts[0]
+    sub_accounts = accounts[1:]
+
+    await asyncio.sleep(60)  # tunggu 1 menit dulu sebelum mulai
+
+    while True:
+        try:
+            async with AsyncPolyester(
+                api_key_id=main_acc["api_key_id"],
+                api_private_key=main_acc["api_private_key"],
+                default_sub_account_id=main_acc["account_id"],
+                api_url='https://api.testnet.polyester.com',
+                ws_url='wss://api.testnet.polyester.com',
+            ) as client:
+                await client.wait_for_catalogs()
+
+                balances = await client.balances.list()
+                for b in balances.balances:
+                    if b.asset_id == DISTRIBUTE_ASSET_ID:
+                        available = int(b.available) / 1e18
+                        distributable = available - DISTRIBUTE_RESERVE
+
+                        if distributable < len(sub_accounts):
+                            print(f"[DIST] Available {available:.2f} USDC, tidak cukup untuk distribute")
+                            break
+
+                        per_akun = int(distributable / len(sub_accounts))
+                        print(f"[DIST] Available {available:.2f} USDC, distribute {per_akun} USDC ke {len(sub_accounts)} akun")
+
+                        for acc_to in sub_accounts:
+                            try:
+                                await client.internal_transfers.create(
+                                    asset_id=DISTRIBUTE_ASSET_ID,
+                                    quantity=str(per_akun),
+                                    idempotency_key=str(uuid.uuid4()),
+                                    destination_subaccount_id=acc_to["account_id"],
+                                )
+                                print(f"[DIST] -> [{acc_to['name']}] {per_akun} USDC OK")
+                            except Exception as e:
+                                print(f"[DIST] -> [{acc_to['name']}] GAGAL: {str(e)[:60]}")
+                        break
+
+        except Exception as e:
+            print(f"[DIST] Error: {e}")
+
+        await asyncio.sleep(DISTRIBUTE_INTERVAL)
+
+
 async def main():
     accounts = load_accounts()
     if not accounts:
@@ -194,7 +244,10 @@ async def main():
     mode = "MAKER + MARKET fallback" if MAKER_MODE else "MARKET only"
     print(f"Mode: {mode} | Multi-pair | Qty random\n")
 
-    await asyncio.gather(*[run_account_loop(acc) for acc in accounts])
+    await asyncio.gather(
+        *[run_account_loop(acc) for acc in accounts],
+        auto_distribute(accounts),
+    )
 
 
 if __name__ == "__main__":
