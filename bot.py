@@ -3,9 +3,10 @@ import asyncio
 import json
 import random
 import time
+import uuid
 from pathlib import Path
 
-from polyester import AsyncPolyester, Price
+from polyester import AsyncPolyester
 
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
@@ -26,9 +27,12 @@ LOOP_DELAY_MAX = 90
 MAKER_MODE = True
 MAKER_CANCEL_AFTER = 2
 
-DISTRIBUTE_INTERVAL = 120   # cek dan distribute tiap 2 menit
-DISTRIBUTE_RESERVE = 50     # sisakan 50 USDC di akun utama
-DISTRIBUTE_ASSET_ID = 2     # USDC
+DISTRIBUTE_INTERVAL = 120  # distribute tiap 2 menit
+DISTRIBUTE_ASSETS = {
+    2: 50,  # USDC, reserve 50
+    18: 5,  # SOL, reserve 5
+    1: 2,   # LTC, reserve 2
+}
 # ====================================================
 
 
@@ -185,11 +189,10 @@ async def run_account_loop(account: dict):
 
 
 async def auto_distribute(accounts: list):
-    """Distribute saldo USDC dari akun utama ke subaccount secara otomatis."""
     main_acc = accounts[0]
     sub_accounts = accounts[1:]
 
-    await asyncio.sleep(60)  # tunggu 1 menit dulu sebelum mulai
+    await asyncio.sleep(10)  # tunggu 10 detik sebelum mulai
 
     while True:
         try:
@@ -204,29 +207,34 @@ async def auto_distribute(accounts: list):
 
                 balances = await client.balances.list()
                 for b in balances.balances:
-                    if b.asset_id == DISTRIBUTE_ASSET_ID:
-                        available = int(b.available) / 1e18
-                        distributable = available - DISTRIBUTE_RESERVE
+                    if b.asset_id not in DISTRIBUTE_ASSETS:
+                        continue
 
-                        if distributable < len(sub_accounts):
-                            print(f"[DIST] Available {available:.2f} USDC, tidak cukup untuk distribute")
-                            break
+                    reserve = DISTRIBUTE_ASSETS[b.asset_id]
+                    available = int(b.available) / 1e18
+                    distributable = available - reserve
 
-                        per_akun = int(distributable / len(sub_accounts))
-                        print(f"[DIST] Available {available:.2f} USDC, distribute {per_akun} USDC ke {len(sub_accounts)} akun")
+                    if distributable < len(sub_accounts):
+                        print(f"[DIST] asset_id={b.asset_id} available={available:.4f}, skip")
+                        continue
 
-                        for acc_to in sub_accounts:
-                            try:
-                                await client.internal_transfers.create(
-                                    asset_id=DISTRIBUTE_ASSET_ID,
-                                    quantity=str(per_akun),
-                                    idempotency_key=str(uuid.uuid4()),
-                                    destination_subaccount_id=acc_to["account_id"],
-                                )
-                                print(f"[DIST] -> [{acc_to['name']}] {per_akun} USDC OK")
-                            except Exception as e:
-                                print(f"[DIST] -> [{acc_to['name']}] GAGAL: {str(e)[:60]}")
-                        break
+                    per_akun = int(distributable / len(sub_accounts))
+                    if per_akun < 1:
+                        continue
+
+                    print(f"[DIST] asset_id={b.asset_id} available={available:.4f}, distribute {per_akun} ke {len(sub_accounts)} akun")
+
+                    for acc_to in sub_accounts:
+                        try:
+                            await client.internal_transfers.create(
+                                asset_id=b.asset_id,
+                                quantity=str(per_akun),
+                                idempotency_key=str(uuid.uuid4()),
+                                destination_subaccount_id=acc_to["account_id"],
+                            )
+                            print(f"[DIST] -> [{acc_to['name']}] asset_id={b.asset_id} {per_akun} OK")
+                        except Exception as e:
+                            print(f"[DIST] -> [{acc_to['name']}] GAGAL: {str(e)[:60]}")
 
         except Exception as e:
             print(f"[DIST] Error: {e}")
