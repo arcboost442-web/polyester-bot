@@ -13,8 +13,8 @@ ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
 SYMBOLS = ["LTC-USDT", "SOL-USDC"]
 ORDERS_PER_ACCOUNT = 20
-QTY_MIN = 2.0
-QTY_MAX = 5.0
+QTY_MIN = 0.1
+QTY_MAX = 0.5
 
 DELAY_MIN = 3
 DELAY_MAX = 8
