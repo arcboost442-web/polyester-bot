@@ -27,7 +27,7 @@ LOOP_DELAY_MAX = 90
 MAKER_MODE = True
 MAKER_CANCEL_AFTER = 2
 
-DISTRIBUTE_INTERVAL = 120  # distribute tiap 2 menit
+DISTRIBUTE_INTERVAL = 60  # distribute tiap 2 menit
 DISTRIBUTE_ASSETS = {
     2: 50,  # USDC, reserve 50
     18: 5,  # SOL, reserve 5
@@ -235,6 +235,7 @@ async def auto_distribute(accounts: list):
                             print(f"[DIST] -> [{acc_to['name']}] asset_id={b.asset_id} {per_akun} OK")
                         except Exception as e:
                             print(f"[DIST] -> [{acc_to['name']}] GAGAL: {str(e)[:60]}")
+                            await asyncio.sleep(1)
 
         except Exception as e:
             print(f"[DIST] Error: {e}")
