@@ -24,7 +24,7 @@ LOOP_DELAY_MIN = 30
 LOOP_DELAY_MAX = 90
 
 MAKER_MODE = True
-MAKER_CANCEL_AFTER = 5
+MAKER_CANCEL_AFTER = 2  # diperkecil dari 5 ke 2 detik
 # ====================================================
 
 
@@ -64,9 +64,19 @@ async def place_maker_order(client, symbol, side, qty, round_num, name, i):
         print(f"   [MAKER] [{name}] LIMIT {side.upper():4} {qty} {symbol} @ {price_val:.2f} -> {result.status}")
 
         await asyncio.sleep(MAKER_CANCEL_AFTER)
+
+        # Cek status dulu sebelum cancel
         try:
+            order_status = await client.orders.get(order_id=order_id, symbol=symbol)
+
+            if order_status.status in ("filled", "partially_filled"):
+                print(f"   [FILLED] [{name}] Order sudah fill via maker, skip fallback")
+                return True
+
+            # Belum fill -> cancel lalu langsung market
             await client.orders.cancel(order_id=order_id, symbol=symbol)
-            # Tidak filled -> fallback ke market order
+            print(f"   [CANCEL] [{name}] Belum fill, fallback ke market order")
+
             fallback_id = f"fallback-{name}-{round_num}-{int(time.time()*1000)}-{i}"
             result2 = await client.orders.create(
                 symbol=symbol,
@@ -76,9 +86,12 @@ async def place_maker_order(client, symbol, side, qty, round_num, name, i):
                 qty=qty,
                 client_order_id=fallback_id,
             )
-            print(f"   [FALLBACK] [{name}] MARKET {side.upper():4} {qty} {symbol} -> {result2.status}")
+            print(f"   [MARKET] [{name}] MARKET {side.upper():4} {qty} {symbol} -> {result2.status}")
+
         except Exception:
-            pass  # sudah filled oleh maker, tidak perlu fallback
+            # Cancel error = sudah filled
+            print(f"   [FILLED] [{name}] Order fill saat dicoba cancel")
+
         return True
     except Exception as e:
         print(f"   [ERR] [{name}] Gagal maker {side} {symbol}: {str(e)[:80]}")
@@ -130,7 +143,6 @@ async def trade_one_account(client, account: dict, round_num: int):
 
 async def run_account_loop(account: dict):
     name = account.get("name", "unknown")
-    proxy_str = account.get("proxy", "")
     start_delay = random.randint(DELAY_MIN * 2, DELAY_MAX * 4)
     print(f"[WAIT] [{name}] mulai dalam {start_delay}s...")
     await asyncio.sleep(start_delay)
@@ -179,7 +191,7 @@ async def main():
         return
 
     print(f"Total akun: {len(accounts)}")
-    mode = "MAKER (limit post_only)" if MAKER_MODE else "MARKET (taker)"
+    mode = "MAKER + MARKET fallback" if MAKER_MODE else "MARKET only"
     print(f"Mode: {mode} | Multi-pair | Qty random\n")
 
     await asyncio.gather(*[run_account_loop(acc) for acc in accounts])
