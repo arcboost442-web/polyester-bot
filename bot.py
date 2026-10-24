@@ -26,13 +26,13 @@ LOOP_DELAY_MAX = 90
 
 
 def load_accounts():
+    accounts_json = os.environ.get("ACCOUNTS_JSON")
+    if accounts_json:
+        return json.loads(accounts_json)
     path = Path(ACCOUNTS_FILE)
     if not path.exists():
         print(f"❌ File {ACCOUNTS_FILE} tidak ditemukan!")
         return []
-    accounts_json = os.environ.get("ACCOUNTS_JSON")
-    if accounts_json:
-        return json.loads(accounts_json)
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
