@@ -1,0 +1,96 @@
+{
+  "total_tests": 11,
+  "bugs_found": 4,
+  "bugs": [
+    {
+      "test": "market_ioc_fill",
+      "description": "Status tidak dikenal: accepted",
+      "expected": "filled",
+      "actual": "accepted",
+      "severity": "MEDIUM",
+      "timestamp": "2026-10-17 06:30:34"
+    },
+    {
+      "test": "batch_order_max_limit",
+      "description": "AsyncOrdersService.batch_create() got an unexpected keyword argument 'orders'",
+      "expected": "Batch sukses",
+      "actual": "Exception: AsyncOrdersService.batch_create() got an unexpected keyword argument 'orders'",
+      "severity": "MEDIUM",
+      "timestamp": "2026-10-17 06:30:41"
+    },
+    {
+      "test": "candle_data",
+      "description": "object of type 'CandlesResult' has no len()",
+      "expected": "Candle data sukses",
+      "actual": "Exception: object of type 'CandlesResult' has no len()",
+      "severity": "MEDIUM",
+      "timestamp": "2026-10-17 06:30:48"
+    },
+    {
+      "test": "trades_data",
+      "description": "object of type 'MarketTradesResult' has no len()",
+      "expected": "Trades sukses",
+      "actual": "Exception: object of type 'MarketTradesResult' has no len()",
+      "severity": "MEDIUM",
+      "timestamp": "2026-10-17 06:30:49"
+    }
+  ],
+  "all_tests": [
+    {
+      "test": "duplicate_client_order_id",
+      "status": "OK",
+      "note": "Order ke-2 ditolak dengan benar: Duplicate client order ID."
+    },
+    {
+      "test": "zero_qty_order",
+      "status": "OK",
+      "note": "Ditolak dengan benar: qty must be positive"
+    },
+    {
+      "test": "invalid_symbol",
+      "status": "OK",
+      "note": "Ditolak: quantity scale for 'FAKE-COIN' is unavailable; await client.wait_for_catalogs() "
+    },
+    {
+      "test": "cancel_nonexistent_order",
+      "status": "OK",
+      "note": "Error dikembalikan dengan benar: AsyncOrdersService.cancel() got an unexpected keyword argument 'client_order_id'"
+    },
+    {
+      "test": "balance_list",
+      "status": "OK",
+      "note": "Balance tersedia"
+    },
+    {
+      "test": "vip_status_endpoint",
+      "status": "SKIP",
+      "note": "VIP endpoint belum ada di SDK versi ini"
+    },
+    {
+      "test": "open_orders_after_cancel_all",
+      "status": "OK",
+      "note": "Tidak ada order tersisa setelah cancel_all"
+    },
+    {
+      "test": "market_overview",
+      "status": "OK",
+      "note": "10 markets"
+    },
+    {
+      "test": "float_qty_input",
+      "status": "OK",
+      "note": "Rejected: qty must be a decimal string, Decimal, or typed scaled value"
+    },
+    {
+      "test": "negative_qty",
+      "status": "OK",
+      "note": "Ditolak: qty must be a valid decimal string"
+    },
+    {
+      "test": "very_large_qty",
+      "status": "OK",
+      "note": "Ditolak: Insufficient funds."
+    }
+  ],
+  "generated_at": "2026-10-17 06:30:53"
+}

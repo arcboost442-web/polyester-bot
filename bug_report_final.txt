@@ -1,0 +1,89 @@
+✅ Koneksi berhasil
+
+
+=================================================================
+  BUG #1 — orders.get() keyword argument salah
+=================================================================
+  SDK Method  : client.orders.get()
+  Signature   : (*, key: 'OrderKey', account: 'AccountScope | None' = None, sub_account_id: 'str | None' = None, include_attached_risk: 'bool' = False, include_attached_risk_state: 'bool' = False, include_execution_history: 'bool | None' = None, limit: 'int | None' = None, page_token: 'str | None' = None) -> 'GetOrderResult'
+
+  Step 1: Buat order dengan client_order_id = bug1-1792193700735
+  Order created → order_id=fYpK6GAXLbj, status=accepted
+
+  Step 2: Coba get via client_order_id (cara yang intuitif)
+  ❌ ERROR: AsyncOrdersService.get() got an unexpected keyword argument 'client_order_id'
+  🐛 BUG CONFIRMED: orders.get() tidak support 'client_order_id'
+
+  Step 3: Coba get via order_id (cara alternatif)
+  Parameter tersedia: ['key', 'account', 'sub_account_id', 'include_attached_risk', 'include_attached_risk_state', 'include_execution_history', 'limit', 'page_token']
+  ❌ get(order_id=...) juga error: AsyncOrdersService.get() got an unexpected keyword argument 'order_id'
+
+  Step 4: Coba cancel via order_id
+  Signature cancel: (*, key: 'OrderKey', account: 'AccountScope | None' = None, symbol: 'str | None' = None, symbol_id: 'int | None' = None, sub_account_id: 'str | None' = None) -> 'OrderMutationResult'
+  Parameter cancel: ['key', 'account', 'symbol', 'symbol_id', 'sub_account_id']
+
+=================================================================
+  BUG #2 — batch_create() parameter 'items' tidak terdokumentasi
+=================================================================
+  Signature aktual : (*, account: 'AccountScope | None' = None, items: 'list[CreateOrderRequest | dict[str, Any]]', sub_account_id: 'str | None' = None, symbol: 'str | None' = None, request_id: 'str | None' = None, allow_partial: 'bool' = False) -> 'BatchCreateOrdersResult'
+  Expected di docs : batch_create(orders=[...])
+  Actual parameter : items=[...]
+
+  🐛 BUG: Dokumentasi/SDK menyebutkan 'orders' tapi actual adalah 'items'
+  Dampak: Developer tidak bisa batch order tanpa inspect SDK langsung
+
+  Verifikasi: batch_create(items=[...]) bekerja atau tidak?
+  ✅ batch_create(items=...) BERHASIL
+  Result type: <class 'polyester.models.trading.BatchCreateOrdersResult'>
+  Result attrs: ['accepted_count', 'rejected_count', 'results']
+  Results: [BatchCreateResultItem(status='accepted', order_id='ao5w5QzcLns', client_order_id='bug2-batch-1792193704887-0', code='', rate_limit=None), BatchCreateResultItem(status='accepted', order_id='Pt2UrXiVKxf', client_order_id='bug2-batch-1792193704887-1', code='', rate_limit=None), BatchCreateResultItem(status='accepted', order_id='ayTs4ybKaUe', client_order_id='bug2-batch-1792193704887-2', code='', rate_limit=None)]
+
+=================================================================
+  BUG #3 — Status 'accepted' tidak ada di dokumentasi lifecycle
+=================================================================
+  Documented statuses (dari SDK docs):
+  created, armed, running, completed, cancelled, failed, paused
+
+  Observed status: 'accepted'
+  🐛 BUG: 'accepted' tidak terdokumentasi — developer tidak tahu
+          apakah order ini akan filled atau perlu polling manual
+
+  Verifikasi: track status lifecycle lengkap market IOC order
+  T+0s  status = accepted
+  order_id     = FHXhBVEoNCt
+  T+1s  tidak ada di list_open (sudah settled/cancelled)
+
+=================================================================
+  BUG #4 — orders.cancel() keyword argument
+=================================================================
+  Signature aktual: (*, key: 'OrderKey', account: 'AccountScope | None' = None, symbol: 'str | None' = None, symbol_id: 'int | None' = None, sub_account_id: 'str | None' = None) -> 'OrderMutationResult'
+  Parameters      : ['key', 'account', 'symbol', 'symbol_id', 'sub_account_id']
+
+  Cara intuitif cancel: cancel(client_order_id='xxx')
+  Cara intuitif cancel: cancel(order_id='xxx')
+  ❌ Gagal buat limit order: Price must align with the tick size.
+
+=================================================================
+  RINGKASAN BUG UNTUK DILAPORKAN KE BUG SUPPORT
+=================================================================
+
+  [BUG-001] [MEDIUM] orders.get() tidak menerima 'client_order_id' sebagai parameter
+  Reproduce : await client.orders.get(client_order_id='xxx')
+  Error     : AsyncOrdersService.get() got an unexpected keyword argument 'client_order_id'
+  Impact    : Developer tidak bisa lookup order by client_order_id setelah submit
+
+  [BUG-002] [MEDIUM] batch_create() parameter bernama 'items' bukan 'orders' (tidak terdokumentasi)
+  Reproduce : await client.orders.batch_create(orders=[...])  # gagal
+await client.orders.batch_create(items=[...])   # berhasil
+  Error     : AsyncOrdersService.batch_create() got an unexpected keyword argument 'orders'
+  Impact    : Developer tidak bisa gunakan batch order sesuai dokumentasi
+
+  [BUG-003] [LOW] Status 'accepted' tidak terdokumentasi dalam order lifecycle
+  Reproduce : Market IOC order langsung return status='accepted'
+  Error     : Status 'accepted' tidak ada di docs (hanya: filled, cancelled, rejected, dll)
+  Impact    : Developer tidak tahu apakah order akan settled atau perlu action tambahan
+
+  [BUG-004] [MEDIUM] orders.cancel() tidak menerima 'client_order_id' sebagai parameter
+  Reproduce : await client.orders.cancel(client_order_id='xxx')
+  Error     : AsyncOrdersService.cancel() got an unexpected keyword argument 'client_order_id'
+  Impact    : Developer harus pakai order_id internal, bukan client_order_id yang mereka set sendiri
