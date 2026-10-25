@@ -48,9 +48,10 @@ def load_accounts():
 
 async def get_mid_price(client, symbol):
     ob = await client.orderbook.get(symbol=symbol)
-    best_bid = ob.bids[0].price.ticks / 100_000_000
-    best_ask = ob.asks[0].price.ticks / 100_000_000
-    return (best_bid + best_ask) / 2
+    best_bid_ticks = ob.bids[0].price.ticks
+    best_ask_ticks = ob.asks[0].price.ticks
+    mid_ticks = (best_bid_ticks + best_ask_ticks) // 2
+    return mid_ticks
 
 
 async def cancel_all_orders(client, symbol, name):
@@ -76,17 +77,16 @@ async def place_grid_orders(client, symbol, name, round_num):
         return 0
 
     success = 0
-    mid_d = Decimal(str(mid))
-    interval_d = Decimal(str(interval))
-    tick = Decimal("0.01")
+    tick_size = 1_000_000  # 0.01 dalam ticks (1e8 per unit, 0.01 = 1_000_000)
 
     for i in range(1, grids + 1):
         qty = str(round(random.uniform(qty_min, qty_max), 2))
         ts = int(time.time() * 1000)
 
         # Buy order di bawah mid
-        raw_buy = mid_d - interval_d * i
-        buy_ticks = int((round(raw_buy / tick) * tick) * 100_000_000)
+        interval_ticks = int(interval * 100_000_000)
+        buy_ticks = mid - interval_ticks * i
+        buy_ticks = (buy_ticks // tick_size) * tick_size
         buy_price = Price(ticks=buy_ticks)
         try:
             await client.orders.create(
@@ -107,8 +107,8 @@ async def place_grid_orders(client, symbol, name, round_num):
         await asyncio.sleep(ORDER_DELAY)
 
         # Sell order di atas mid
-        raw_sell = mid_d + interval_d * i
-        sell_ticks = int((round(raw_sell / tick) * tick) * 100_000_000)
+        sell_ticks = mid + interval_ticks * i
+        sell_ticks = (sell_ticks // tick_size) * tick_size
         sell_price = Price(ticks=sell_ticks)
         try:
             await client.orders.create(
