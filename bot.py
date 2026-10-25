@@ -48,8 +48,8 @@ def load_accounts():
 
 async def get_mid_price(client, symbol):
     ob = await client.orderbook.get(symbol=symbol)
-    best_bid_ticks = ob.bids[0].price.ticks
-    best_ask_ticks = ob.asks[0].price.ticks
+    best_bid_ticks = int(ob.bids[0].price.ticks)
+    best_ask_ticks = int(ob.asks[0].price.ticks)
     mid_ticks = (best_bid_ticks + best_ask_ticks) // 2
     tick_size = 1_000_000
     mid_ticks = (mid_ticks // tick_size) * tick_size
