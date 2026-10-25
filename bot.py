@@ -15,13 +15,13 @@ ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 GRID_CONFIG = {
     "LTC-USDT": {
         "grids": 10,
-        "interval": 0.5,
+        "interval": 0.1,    # tick size 0.01, interval 0.1
         "qty_min": 0.5,
         "qty_max": 1.5,
     },
     "SOL-USDC": {
         "grids": 10,
-        "interval": 0.5,
+        "interval": 0.1,    # tick size 0.01, interval 0.1
         "qty_min": 0.1,
         "qty_max": 0.5,
     },
