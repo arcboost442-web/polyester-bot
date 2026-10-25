@@ -89,6 +89,7 @@ async def place_grid_orders(client, symbol, name, round_num):
         interval_ticks = round(interval * 100_000_000)
         buy_ticks = int(mid) - interval_ticks * i
         buy_ticks = (buy_ticks // tick_size) * tick_size
+        print(f"   [DEBUG] buy_ticks={int(buy_ticks)} mod={int(buy_ticks) % 1_000_000}")
         buy_price = Price(ticks=int(buy_ticks))
         try:
             await client.orders.create(
