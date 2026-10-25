@@ -11,28 +11,24 @@ from polyester import AsyncPolyester
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
-SYMBOLS = ["LTC-USDT", "SOL-USDC"]
-ORDERS_PER_ACCOUNT = 20
-QTY_MIN = 0.1
-QTY_MAX = 0.5
-
-DELAY_MIN = 3
-DELAY_MAX = 8
-ORDER_DELAY_MIN = 0.8
-ORDER_DELAY_MAX = 1.8
+GRID_CONFIG = {
+    "LTC-USDT": {
+        "grids": 10,        # jumlah level per sisi
+        "interval": 0.5,    # jarak antar grid dalam USDT
+        "qty_min": 0.5,
+        "qty_max": 1.5,
+    },
+    "SOL-USDC": {
+        "grids": 10,
+        "interval": 0.5,    # jarak antar grid dalam USDC
+        "qty_min": 0.1,
+        "qty_max": 0.5,
+    },
+}
 
 LOOP_DELAY_MIN = 30
-LOOP_DELAY_MAX = 90
-
-MAKER_MODE = True
-MAKER_CANCEL_AFTER = 2
-
-DISTRIBUTE_INTERVAL = 60  # distribute tiap 2 menit
-DISTRIBUTE_ASSETS = {
-    2: 50,  # USDC, reserve 50
-    18: 5,  # SOL, reserve 5
-    1: 2,   # LTC, reserve 2
-}
+LOOP_DELAY_MAX = 60
+ORDER_DELAY = 0.5
 # ====================================================
 
 
@@ -48,111 +44,102 @@ def load_accounts():
         return json.load(f)
 
 
-async def place_maker_order(client, symbol, side, qty, round_num, name, i):
+async def get_mid_price(client, symbol):
+    ob = await client.orderbook.get(symbol=symbol)
+    best_bid = ob.bids[0].price.ticks / 100_000_000
+    best_ask = ob.asks[0].price.ticks / 100_000_000
+    return (best_bid + best_ask) / 2
+
+
+async def place_grid_orders(client, symbol, name, round_num):
+    config = GRID_CONFIG[symbol]
+    grids = config["grids"]
+    interval = config["interval"]
+    qty_min = config["qty_min"]
+    qty_max = config["qty_max"]
+
     try:
-        ob = await client.orderbook.get(symbol=symbol)
-        if side == "buy":
-            price = ob.bids[0].price
-        else:
-            price = ob.asks[0].price
-
-        client_order_id = f"maker-{name}-{round_num}-{int(time.time()*1000)}-{i}"
-        result = await client.orders.create(
-            symbol=symbol,
-            side=side,
-            order_type="limit",
-            tif="gtc",
-            qty=qty,
-            price=price,
-            post_only=True,
-            client_order_id=client_order_id,
-        )
-        order_id = result.order_id
-        price_val = price.ticks / 100_000_000
-        print(f"   [MAKER] [{name}] LIMIT {side.upper():4} {qty} {symbol} @ {price_val:.2f} -> {result.status}")
-
-        await asyncio.sleep(MAKER_CANCEL_AFTER)
-
-        try:
-            order_status = await client.orders.get(order_id=order_id, symbol=symbol)
-            if order_status.status in ("filled", "partially_filled"):
-                print(f"   [FILLED] [{name}] Order sudah fill via maker, skip fallback")
-                return True
-
-            await client.orders.cancel(order_id=order_id, symbol=symbol)
-            print(f"   [CANCEL] [{name}] Belum fill, fallback ke market order")
-
-            fallback_id = f"fallback-{name}-{round_num}-{int(time.time()*1000)}-{i}"
-            result2 = await client.orders.create(
-                symbol=symbol,
-                side=side,
-                order_type="market",
-                tif="ioc",
-                qty=qty,
-                client_order_id=fallback_id,
-            )
-            print(f"   [MARKET] [{name}] MARKET {side.upper():4} {qty} {symbol} -> {result2.status}")
-
-        except Exception:
-            print(f"   [FILLED] [{name}] Order fill saat dicoba cancel")
-
-        return True
+        mid = await get_mid_price(client, symbol)
+        print(f"   [GRID] [{name}] {symbol} mid={mid:.4f}")
     except Exception as e:
-        print(f"   [ERR] [{name}] Gagal maker {side} {symbol}: {str(e)[:80]}")
-        return False
+        print(f"   [ERR] [{name}] Gagal get mid price {symbol}: {e}")
+        return 0
 
-
-async def trade_one_account(client, account: dict, round_num: int):
-    name = account.get("name", "unknown")
-    symbols = account.get("symbols", SYMBOLS)
-    weights = account.get("weights", None)
-    if weights and len(weights) != len(symbols):
-        weights = None
     success = 0
-    fail = 0
 
-    for i in range(ORDERS_PER_ACCOUNT):
-        symbol = random.choices(symbols, weights=weights, k=1)[0]
-        side = random.choice(["buy", "sell"])
-        qty = str(round(random.uniform(QTY_MIN, QTY_MAX), 2))
-        client_order_id = f"bot-{name}-{round_num}-{int(time.time()*1000)}-{i}"
+    for i in range(1, grids + 1):
+        qty = str(round(random.uniform(qty_min, qty_max), 2))
+        ts = int(time.time() * 1000)
 
-        if MAKER_MODE:
-            ok = await place_maker_order(client, symbol, side, qty, round_num, name, i)
-            if ok:
-                success += 1
-            else:
-                fail += 1
-        else:
-            try:
-                result = await client.orders.create(
-                    symbol=symbol,
-                    side=side,
-                    order_type="market",
-                    tif="ioc",
-                    qty=qty,
-                    client_order_id=client_order_id,
-                )
-                print(f"   [OK] [{name}] {side.upper():4} {qty} {symbol} -> {result.status}")
-                success += 1
-            except Exception as e:
-                print(f"   [ERR] [{name}] Gagal {side} {symbol}: {str(e)[:80]}")
-                fail += 1
+        # Buy order di bawah mid
+        buy_price = round(mid - interval * i, 4)
+        try:
+            await client.orders.create(
+                symbol=symbol,
+                side="buy",
+                order_type="limit",
+                tif="gtc",
+                qty=qty,
+                price=buy_price,
+                post_only=True,
+                client_order_id=f"grid-{name}-{round_num}-buy-{i}-{ts}",
+            )
+            print(f"   [GRID] [{name}] BUY  {qty} {symbol} @ {buy_price:.4f}")
+            success += 1
+        except Exception as e:
+            print(f"   [ERR] [{name}] BUY grid {i} {symbol}: {str(e)[:60]}")
 
-        await asyncio.sleep(random.uniform(ORDER_DELAY_MIN, ORDER_DELAY_MAX))
+        await asyncio.sleep(ORDER_DELAY)
 
-    print(f"   [STAT] [{name}] sukses={success} gagal={fail}")
+        # Sell order di atas mid
+        sell_price = round(mid + interval * i, 4)
+        try:
+            await client.orders.create(
+                symbol=symbol,
+                side="sell",
+                order_type="limit",
+                tif="gtc",
+                qty=qty,
+                price=sell_price,
+                post_only=True,
+                client_order_id=f"grid-{name}-{round_num}-sell-{i}-{ts}",
+            )
+            print(f"   [GRID] [{name}] SELL {qty} {symbol} @ {sell_price:.4f}")
+            success += 1
+        except Exception as e:
+            print(f"   [ERR] [{name}] SELL grid {i} {symbol}: {str(e)[:60]}")
+
+        await asyncio.sleep(ORDER_DELAY)
+
     return success
+
+
+async def cancel_all_orders(client, symbol, name):
+    try:
+        open_orders = await client.orders.list(symbol=symbol)
+        cancelled = 0
+        for order in open_orders:
+            try:
+                await client.orders.cancel(order_id=order.order_id, symbol=symbol)
+                cancelled += 1
+                await asyncio.sleep(0.3)
+            except Exception:
+                pass
+        if cancelled:
+            print(f"   [CANCEL] [{name}] {symbol} cancelled {cancelled} orders")
+    except Exception as e:
+        print(f"   [ERR] [{name}] Cancel orders {symbol}: {str(e)[:60]}")
 
 
 async def run_account_loop(account: dict):
     name = account.get("name", "unknown")
-    start_delay = random.randint(DELAY_MIN * 2, DELAY_MAX * 4)
+    symbols = account.get("symbols", list(GRID_CONFIG.keys()))
+    start_delay = random.randint(6, 30)
     print(f"[WAIT] [{name}] mulai dalam {start_delay}s...")
     await asyncio.sleep(start_delay)
 
-    total_success = 0
     round_num = 0
+    total_success = 0
 
     while True:
         round_num += 1
@@ -166,7 +153,6 @@ async def run_account_loop(account: dict):
                 api_url='https://api.testnet.polyester.com',
                 ws_url='wss://api.testnet.polyester.com',
             ) as client:
-
                 await client.wait_for_catalogs()
 
                 try:
@@ -176,8 +162,18 @@ async def run_account_loop(account: dict):
                     await asyncio.sleep(30)
                     continue
 
-                ok = await trade_one_account(client, account, round_num)
-                total_success += ok
+                # Cancel semua order lama dulu
+                for symbol in symbols:
+                    await cancel_all_orders(client, symbol, name)
+
+                await asyncio.sleep(1)
+
+                # Pasang grid baru
+                for symbol in symbols:
+                    ok = await place_grid_orders(client, symbol, name, round_num)
+                    total_success += ok
+                    print(f"   [STAT] [{name}] {symbol} {ok} orders placed")
+
                 print(f"   [TOTAL] [{name}] total sukses: {total_success}")
 
         except Exception as e:
@@ -188,61 +184,6 @@ async def run_account_loop(account: dict):
         await asyncio.sleep(delay)
 
 
-async def auto_distribute(accounts: list):
-    main_acc = accounts[0]
-    sub_accounts = accounts[1:]
-
-    await asyncio.sleep(10)  # tunggu 10 detik sebelum mulai
-
-    while True:
-        try:
-            async with AsyncPolyester(
-                api_key_id=main_acc["api_key_id"],
-                api_private_key=main_acc["api_private_key"],
-                default_sub_account_id=main_acc["account_id"],
-                api_url='https://api.testnet.polyester.com',
-                ws_url='wss://api.testnet.polyester.com',
-            ) as client:
-                await client.wait_for_catalogs()
-
-                balances = await client.balances.list()
-                for b in balances.balances:
-                    if b.asset_id not in DISTRIBUTE_ASSETS:
-                        continue
-
-                    reserve = DISTRIBUTE_ASSETS[b.asset_id]
-                    available = int(b.available) / 1e18
-                    distributable = available - reserve
-
-                    if distributable < len(sub_accounts):
-                        print(f"[DIST] asset_id={b.asset_id} available={available:.4f}, skip")
-                        continue
-
-                    per_akun = int(distributable / len(sub_accounts))
-                    if per_akun < 1:
-                        continue
-
-                    print(f"[DIST] asset_id={b.asset_id} available={available:.4f}, distribute {per_akun} ke {len(sub_accounts)} akun")
-
-                    for acc_to in sub_accounts:
-                        try:
-                            await client.internal_transfers.create(
-                                asset_id=b.asset_id,
-                                quantity=str(per_akun),
-                                idempotency_key=str(uuid.uuid4()),
-                                destination_subaccount_id=acc_to["account_id"],
-                            )
-                            print(f"[DIST] -> [{acc_to['name']}] asset_id={b.asset_id} {per_akun} OK")
-                        except Exception as e:
-                            print(f"[DIST] -> [{acc_to['name']}] GAGAL: {str(e)[:60]}")
-                            await asyncio.sleep(1)
-
-        except Exception as e:
-            print(f"[DIST] Error: {e}")
-
-        await asyncio.sleep(DISTRIBUTE_INTERVAL)
-
-
 async def main():
     accounts = load_accounts()
     if not accounts:
@@ -250,13 +191,9 @@ async def main():
         return
 
     print(f"Total akun: {len(accounts)}")
-    mode = "MAKER + MARKET fallback" if MAKER_MODE else "MARKET only"
-    print(f"Mode: {mode} | Multi-pair | Qty random\n")
+    print(f"Mode: GRID TRADING | LTC-USDT & SOL-USDC\n")
 
-    await asyncio.gather(
-        *[run_account_loop(acc) for acc in accounts],
-        # auto_distribute(accounts),  # dimatikan sementara
-    )
+    await asyncio.gather(*[run_account_loop(acc) for acc in accounts])
 
 
 if __name__ == "__main__":
