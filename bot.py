@@ -100,7 +100,7 @@ async def place_grid_orders(client, symbol, name, round_num):
             print(f"   [GRID] [{name}] BUY  {qty} {symbol} @ {buy_price}")
             success += 1
         except Exception as e:
-            print(f"   [ERR] [{name}] BUY grid {i} {symbol}: {str(e)[:60]}")
+            print(f"   [ERR] [{name}] BUY grid {i} {symbol}: {str(e)}")
 
         await asyncio.sleep(ORDER_DELAY)
 
@@ -121,7 +121,7 @@ async def place_grid_orders(client, symbol, name, round_num):
             print(f"   [GRID] [{name}] SELL {qty} {symbol} @ {sell_price}")
             success += 1
         except Exception as e:
-            print(f"   [ERR] [{name}] SELL grid {i} {symbol}: {str(e)[:60]}")
+            print(f"   [ERR] [{name}] SELL grid {i} {symbol}: {str(e)}")
 
         await asyncio.sleep(ORDER_DELAY)
 
