@@ -255,7 +255,7 @@ async def main():
 
     await asyncio.gather(
         *[run_account_loop(acc) for acc in accounts],
-        auto_distribute(accounts),
+        # auto_distribute(accounts),  # dimatikan sementara
     )
 
 
