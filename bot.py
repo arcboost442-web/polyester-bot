@@ -75,13 +75,17 @@ async def place_grid_orders(client, symbol, name, round_num):
         return 0
 
     success = 0
+    mid_d = Decimal(str(mid))
+    interval_d = Decimal(str(interval))
+    tick = Decimal("0.01")
 
     for i in range(1, grids + 1):
         qty = str(round(random.uniform(qty_min, qty_max), 2))
         ts = int(time.time() * 1000)
 
         # Buy order di bawah mid
-        buy_price = str(Decimal(str(round(mid - interval * i, 4))))
+        raw_buy = mid_d - interval_d * i
+        buy_price = str(round(raw_buy / tick) * tick)
         try:
             await client.orders.create(
                 symbol=symbol,
@@ -101,7 +105,8 @@ async def place_grid_orders(client, symbol, name, round_num):
         await asyncio.sleep(ORDER_DELAY)
 
         # Sell order di atas mid
-        sell_price = str(Decimal(str(round(mid + interval * i, 4))))
+        raw_sell = mid_d + interval_d * i
+        sell_price = str(round(raw_sell / tick) * tick)
         try:
             await client.orders.create(
                 symbol=symbol,
