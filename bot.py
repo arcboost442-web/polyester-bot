@@ -8,6 +8,7 @@ from pathlib import Path
 from decimal import Decimal
 
 from polyester import AsyncPolyester
+from polyester.types.money import Price
 
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
@@ -85,7 +86,8 @@ async def place_grid_orders(client, symbol, name, round_num):
 
         # Buy order di bawah mid
         raw_buy = mid_d - interval_d * i
-        buy_price = str(round(raw_buy / tick) * tick)
+        buy_ticks = int((round(raw_buy / tick) * tick) * 100_000_000)
+        buy_price = Price(ticks=buy_ticks)
         try:
             await client.orders.create(
                 symbol=symbol,
@@ -106,7 +108,8 @@ async def place_grid_orders(client, symbol, name, round_num):
 
         # Sell order di atas mid
         raw_sell = mid_d + interval_d * i
-        sell_price = str(round(raw_sell / tick) * tick)
+        sell_ticks = int((round(raw_sell / tick) * tick) * 100_000_000)
+        sell_price = Price(ticks=sell_ticks)
         try:
             await client.orders.create(
                 symbol=symbol,
