@@ -5,6 +5,7 @@ import random
 import time
 import uuid
 from pathlib import Path
+from decimal import Decimal
 
 from polyester import AsyncPolyester
 
@@ -13,14 +14,14 @@ ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
 GRID_CONFIG = {
     "LTC-USDT": {
-        "grids": 10,        # jumlah level per sisi
-        "interval": 0.5,    # jarak antar grid dalam USDT
+        "grids": 10,
+        "interval": 0.5,
         "qty_min": 0.5,
         "qty_max": 1.5,
     },
     "SOL-USDC": {
         "grids": 10,
-        "interval": 0.5,    # jarak antar grid dalam USDC
+        "interval": 0.5,
         "qty_min": 0.1,
         "qty_max": 0.5,
     },
@@ -51,6 +52,14 @@ async def get_mid_price(client, symbol):
     return (best_bid + best_ask) / 2
 
 
+async def cancel_all_orders(client, symbol, name):
+    try:
+        await client.orders.cancel_all(symbol=symbol)
+        print(f"   [CANCEL] [{name}] {symbol} semua order di-cancel")
+    except Exception as e:
+        print(f"   [ERR] [{name}] Cancel all {symbol}: {str(e)[:60]}")
+
+
 async def place_grid_orders(client, symbol, name, round_num):
     config = GRID_CONFIG[symbol]
     grids = config["grids"]
@@ -72,7 +81,7 @@ async def place_grid_orders(client, symbol, name, round_num):
         ts = int(time.time() * 1000)
 
         # Buy order di bawah mid
-        buy_price = round(mid - interval * i, 4)
+        buy_price = str(Decimal(str(round(mid - interval * i, 4))))
         try:
             await client.orders.create(
                 symbol=symbol,
@@ -84,7 +93,7 @@ async def place_grid_orders(client, symbol, name, round_num):
                 post_only=True,
                 client_order_id=f"grid-{name}-{round_num}-buy-{i}-{ts}",
             )
-            print(f"   [GRID] [{name}] BUY  {qty} {symbol} @ {buy_price:.4f}")
+            print(f"   [GRID] [{name}] BUY  {qty} {symbol} @ {buy_price}")
             success += 1
         except Exception as e:
             print(f"   [ERR] [{name}] BUY grid {i} {symbol}: {str(e)[:60]}")
@@ -92,7 +101,7 @@ async def place_grid_orders(client, symbol, name, round_num):
         await asyncio.sleep(ORDER_DELAY)
 
         # Sell order di atas mid
-        sell_price = round(mid + interval * i, 4)
+        sell_price = str(Decimal(str(round(mid + interval * i, 4))))
         try:
             await client.orders.create(
                 symbol=symbol,
@@ -104,7 +113,7 @@ async def place_grid_orders(client, symbol, name, round_num):
                 post_only=True,
                 client_order_id=f"grid-{name}-{round_num}-sell-{i}-{ts}",
             )
-            print(f"   [GRID] [{name}] SELL {qty} {symbol} @ {sell_price:.4f}")
+            print(f"   [GRID] [{name}] SELL {qty} {symbol} @ {sell_price}")
             success += 1
         except Exception as e:
             print(f"   [ERR] [{name}] SELL grid {i} {symbol}: {str(e)[:60]}")
@@ -112,23 +121,6 @@ async def place_grid_orders(client, symbol, name, round_num):
         await asyncio.sleep(ORDER_DELAY)
 
     return success
-
-
-async def cancel_all_orders(client, symbol, name):
-    try:
-        open_orders = await client.orders.list(symbol=symbol)
-        cancelled = 0
-        for order in open_orders:
-            try:
-                await client.orders.cancel(order_id=order.order_id, symbol=symbol)
-                cancelled += 1
-                await asyncio.sleep(0.3)
-            except Exception:
-                pass
-        if cancelled:
-            print(f"   [CANCEL] [{name}] {symbol} cancelled {cancelled} orders")
-    except Exception as e:
-        print(f"   [ERR] [{name}] Cancel orders {symbol}: {str(e)[:60]}")
 
 
 async def run_account_loop(account: dict):
@@ -162,7 +154,7 @@ async def run_account_loop(account: dict):
                     await asyncio.sleep(30)
                     continue
 
-                # Cancel semua order lama dulu
+                # Cancel semua order lama
                 for symbol in symbols:
                     await cancel_all_orders(client, symbol, name)
 
