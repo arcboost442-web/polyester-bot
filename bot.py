@@ -51,7 +51,7 @@ async def get_mid_price(client, symbol):
     best_bid_ticks = int(ob.bids[0].price.ticks)
     best_ask_ticks = int(ob.asks[0].price.ticks)
     mid_ticks = (best_bid_ticks + best_ask_ticks) // 2
-    tick_size = 1_000_000
+    tick_size = 10_000_000
     mid_ticks = (mid_ticks // tick_size) * tick_size
     return mid_ticks
 
@@ -79,7 +79,7 @@ async def place_grid_orders(client, symbol, name, round_num):
         return 0
 
     success = 0
-    tick_size = 1_000_000  # 0.01 dalam ticks (1e8 per unit, 0.01 = 1_000_000)
+    tick_size = 10_000_000  # 0.1 dalam ticks
 
     for i in range(1, grids + 1):
         qty = str(round(random.uniform(qty_min, qty_max), 2))
