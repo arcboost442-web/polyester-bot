@@ -5,7 +5,6 @@ import random
 import time
 import uuid
 from pathlib import Path
-from decimal import Decimal
 
 from polyester import AsyncPolyester
 from polyester.types.money import Price
@@ -13,24 +12,18 @@ from polyester.types.money import Price
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
-GRID_CONFIG = {
-    "LTC-USDT": {
-        "grids": 10,
-        "interval": 0.1,    # tick size 0.01, interval 0.1
-        "qty_min": 0.5,
-        "qty_max": 1.5,
-    },
-    "SOL-USDC": {
-        "grids": 10,
-        "interval": 0.1,    # tick size 0.01, interval 0.1
-        "qty_min": 0.1,
-        "qty_max": 0.5,
-    },
-}
+SYMBOLS = ["LTC-USDT"]
+GRIDS = 10
+QTY_MIN = 0.5
+QTY_MAX = 1.5
+TICK_SIZE = 10_000_000       # actual tick = $0.10
+INTERVAL_TICKS = 10_000_000  # jarak antar grid
 
-LOOP_DELAY_MIN = 30
-LOOP_DELAY_MAX = 60
-ORDER_DELAY = 0.5
+STAGGER_DELAY = 5            # detik antar akun
+LOOP_DELAY_MIN = 20
+LOOP_DELAY_MAX = 40
+RETRY_MAX = 3
+RETRY_DELAY = 2
 # ====================================================
 
 
@@ -46,97 +39,92 @@ def load_accounts():
         return json.load(f)
 
 
-async def get_mid_price(client, symbol):
+async def get_mid_ticks(client, symbol):
     ob = await client.orderbook.get(symbol=symbol)
-    best_bid_ticks = int(ob.bids[0].price.ticks)
-    best_ask_ticks = int(ob.asks[0].price.ticks)
-    mid_ticks = (best_bid_ticks + best_ask_ticks) // 2
-    tick_size = 10_000_000
-    mid_ticks = (mid_ticks // tick_size) * tick_size
-    return mid_ticks
+    bid = int(ob.bids[0].price.ticks)
+    ask = int(ob.asks[0].price.ticks)
+    mid = (bid + ask) // 2
+    return (mid // TICK_SIZE) * TICK_SIZE
 
 
-async def cancel_all_orders(client, symbol, name):
-    try:
-        await client.orders.cancel_all(symbol=symbol)
-        print(f"   [CANCEL] [{name}] {symbol} semua order di-cancel")
-    except Exception as e:
-        print(f"   [ERR] [{name}] Cancel all {symbol}: {str(e)[:60]}")
-
-
-async def place_grid_orders(client, symbol, name, round_num):
-    config = GRID_CONFIG[symbol]
-    grids = config["grids"]
-    interval = config["interval"]
-    qty_min = config["qty_min"]
-    qty_max = config["qty_max"]
-
-    try:
-        mid = await get_mid_price(client, symbol)
-        print(f"   [GRID] [{name}] {symbol} mid={mid:.4f}")
-    except Exception as e:
-        print(f"   [ERR] [{name}] Gagal get mid price {symbol}: {e}")
-        return 0
-
-    success = 0
-    tick_size = 10_000_000  # 0.1 dalam ticks
-
-    for i in range(1, grids + 1):
-        qty = str(round(random.uniform(qty_min, qty_max), 2))
-        ts = int(time.time() * 1000)
-
-        # Buy order di bawah mid
-        interval_ticks = round(interval * 100_000_000)
-        buy_ticks = int(mid) - interval_ticks * i
-        buy_ticks = (buy_ticks // tick_size) * tick_size
-        buy_price = Price(ticks=int(buy_ticks))
+async def cancel_all_with_retry(client, symbol, name):
+    for attempt in range(RETRY_MAX):
         try:
-            await client.orders.create(
-                symbol=symbol,
-                side="buy",
-                order_type="limit",
-                tif="gtc",
-                qty=qty,
-                price=buy_price,
-                post_only=True,
-                client_order_id=f"grid-{name}-{round_num}-buy-{i}-{ts}",
-            )
-            print(f"   [GRID] [{name}] BUY  {qty} {symbol} @ {buy_price}")
-            success += 1
+            await client.orders.cancel_all(symbol=symbol)
+            print(f"   [CANCEL] [{name}] {symbol} OK")
+            return
         except Exception as e:
-            print(f"   [ERR] [{name}] BUY grid {i} {symbol}: {str(e)}")
+            err = str(e)
+            if "Internal error" in err:
+                pass  # normal, lanjut
+            elif attempt < RETRY_MAX - 1:
+                await asyncio.sleep(RETRY_DELAY)
+            else:
+                print(f"   [ERR] [{name}] Cancel {symbol}: {err[:60]}")
 
-        await asyncio.sleep(ORDER_DELAY)
 
-        # Sell order di atas mid
-        sell_ticks = int(mid) + interval_ticks * i
-        sell_ticks = (sell_ticks // tick_size) * tick_size
-        sell_price = Price(ticks=int(sell_ticks))
+async def place_grid_with_retry(client, symbol, name, round_num):
+    for attempt in range(RETRY_MAX):
         try:
-            await client.orders.create(
-                symbol=symbol,
-                side="sell",
-                order_type="limit",
-                tif="gtc",
-                qty=qty,
-                price=sell_price,
-                post_only=True,
-                client_order_id=f"grid-{name}-{round_num}-sell-{i}-{ts}",
-            )
-            print(f"   [GRID] [{name}] SELL {qty} {symbol} @ {sell_price}")
-            success += 1
+            mid = await get_mid_ticks(client, symbol)
+            print(f"   [GRID] [{name}] {symbol} mid={mid/1e8:.2f}")
+
+            items = []
+            ts = int(time.time() * 1000)
+
+            for i in range(1, GRIDS + 1):
+                qty = str(round(random.uniform(QTY_MIN, QTY_MAX), 2))
+
+                buy_ticks = mid - INTERVAL_TICKS * i
+                buy_ticks = (buy_ticks // TICK_SIZE) * TICK_SIZE
+
+                sell_ticks = mid + INTERVAL_TICKS * i
+                sell_ticks = (sell_ticks // TICK_SIZE) * TICK_SIZE
+
+                items.append({
+                    "symbol": symbol,
+                    "side": "buy",
+                    "order_type": "limit",
+                    "tif": "gtc",
+                    "qty": qty,
+                    "price": Price(ticks=int(buy_ticks)),
+                    "post_only": True,
+                    "client_order_id": f"grid-{name}-{round_num}-buy-{i}-{ts}",
+                })
+                items.append({
+                    "symbol": symbol,
+                    "side": "sell",
+                    "order_type": "limit",
+                    "tif": "gtc",
+                    "qty": qty,
+                    "price": Price(ticks=int(sell_ticks)),
+                    "post_only": True,
+                    "client_order_id": f"grid-{name}-{round_num}-sell-{i}-{ts}",
+                })
+
+            result = await client.orders.batch_create(items=items)
+            success = sum(1 for r in result if hasattr(r, 'order_id'))
+            print(f"   [BATCH] [{name}] {symbol} {success}/{len(items)} orders OK")
+            return success
+
         except Exception as e:
-            print(f"   [ERR] [{name}] SELL grid {i} {symbol}: {str(e)}")
+            err = str(e)
+            if "Service temporarily unavailable" in err or "Internal error" in err:
+                if attempt < RETRY_MAX - 1:
+                    print(f"   [RETRY] [{name}] attempt {attempt+1}/{RETRY_MAX}: {err[:60]}")
+                    await asyncio.sleep(RETRY_DELAY)
+                else:
+                    print(f"   [ERR] [{name}] {symbol} gagal setelah {RETRY_MAX}x: {err[:60]}")
+            else:
+                print(f"   [ERR] [{name}] {symbol}: {err[:80]}")
+                return 0
 
-        await asyncio.sleep(ORDER_DELAY)
-
-    return success
+    return 0
 
 
-async def run_account_loop(account: dict):
+async def run_account_loop(account: dict, index: int):
     name = account.get("name", "unknown")
-    symbols = account.get("symbols", list(GRID_CONFIG.keys()))
-    start_delay = random.randint(6, 30)
+    start_delay = index * STAGGER_DELAY
     print(f"[WAIT] [{name}] mulai dalam {start_delay}s...")
     await asyncio.sleep(start_delay)
 
@@ -165,16 +153,15 @@ async def run_account_loop(account: dict):
                     continue
 
                 # Cancel semua order lama
-                for symbol in symbols:
-                    await cancel_all_orders(client, symbol, name)
+                for symbol in SYMBOLS:
+                    await cancel_all_with_retry(client, symbol, name)
 
                 await asyncio.sleep(1)
 
                 # Pasang grid baru
-                for symbol in symbols:
-                    ok = await place_grid_orders(client, symbol, name, round_num)
+                for symbol in SYMBOLS:
+                    ok = await place_grid_with_retry(client, symbol, name, round_num)
                     total_success += ok
-                    print(f"   [STAT] [{name}] {symbol} {ok} orders placed")
 
                 print(f"   [TOTAL] [{name}] total sukses: {total_success}")
 
@@ -193,9 +180,11 @@ async def main():
         return
 
     print(f"Total akun: {len(accounts)}")
-    print(f"Mode: GRID TRADING | LTC-USDT & SOL-USDC\n")
+    print(f"Mode: GRID TRADING | LTC-USDT only | batch_create\n")
 
-    await asyncio.gather(*[run_account_loop(acc) for acc in accounts])
+    await asyncio.gather(*[
+        run_account_loop(acc, i) for i, acc in enumerate(accounts)
+    ])
 
 
 if __name__ == "__main__":
