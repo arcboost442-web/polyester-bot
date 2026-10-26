@@ -103,8 +103,8 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                 })
 
             result = await client.orders.batch_create(items=items)
-            success = sum(1 for r in result if hasattr(r, 'order_id'))
-            print(f"   [BATCH] [{name}] {symbol} {success}/{len(items)} orders OK")
+            success = result.accepted_count
+            print(f"   [BATCH] [{name}] {symbol} {result.accepted_count} acc {result.rejected_count} rej")
             return success
 
         except Exception as e:
@@ -139,7 +139,7 @@ async def run_account_loop(account: dict, index: int):
             async with AsyncPolyester(
                 api_key_id=account["api_key_id"],
                 api_private_key=account["api_private_key"],
-                default_sub_account_id=account["account_id"],
+                default_account_id=account["account_id"],
                 api_url='https://api.testnet.polyester.com',
                 ws_url='wss://api.testnet.polyester.com',
             ) as client:
