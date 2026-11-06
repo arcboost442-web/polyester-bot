@@ -105,6 +105,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                 sell_ticks = mid + interval_ticks * i
                 sell_ticks = (sell_ticks // tick_size) * tick_size
 
+                post_only = symbol != "XRP-USDT"
                 items.append({
                     "symbol": symbol,
                     "side": "buy",
@@ -112,7 +113,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                     "tif": "gtc",
                     "qty": qty,
                     "price": Price(ticks=int(buy_ticks)),
-                    "post_only": True,
+                    "post_only": post_only,
                     "client_order_id": f"grid-{name}-{round_num}-buy-{i}-{ts}",
                 })
                 items.append({
@@ -122,7 +123,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                     "tif": "gtc",
                     "qty": qty,
                     "price": Price(ticks=int(sell_ticks)),
-                    "post_only": True,
+                    "post_only": post_only,
                     "client_order_id": f"grid-{name}-{round_num}-sell-{i}-{ts}",
                 })
 
