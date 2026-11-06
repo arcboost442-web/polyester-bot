@@ -12,12 +12,27 @@ from polyester.types.money import Price
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
-SYMBOLS = ["LTC-USDT"]
-GRIDS = 10
-QTY_MIN = 0.5
-QTY_MAX = 1.5
-TICK_SIZE = 10_000_000       # actual tick = $0.10
-INTERVAL_TICKS = 10_000_000  # jarak antar grid
+GRID_CONFIG = {
+    "LTC-USDT": {
+        "tick_size": 10_000_000,
+        "interval_ticks": 10_000_000,
+        "qty_min": 0.5,
+        "qty_max": 1.5,
+    },
+    "BTC-USDT": {
+        "tick_size": 10_000_000,
+        "interval_ticks": 10_000_000,
+        "qty_min": 0.0001,
+        "qty_max": 0.001,
+    },
+    "XRP-USDT": {
+        "tick_size": 100_000,
+        "interval_ticks": 100_000,
+        "qty_min": 10.0,
+        "qty_max": 50.0,
+    },
+}
+SYMBOLS = list(GRID_CONFIG.keys())
 
 STAGGER_DELAY = 5            # detik antar akun
 LOOP_DELAY_MIN = 20
@@ -40,11 +55,12 @@ def load_accounts():
 
 
 async def get_mid_ticks(client, symbol):
+    tick_size = GRID_CONFIG[symbol]["tick_size"]
     ob = await client.orderbook.get(symbol=symbol)
     bid = int(ob.bids[0].price.ticks)
     ask = int(ob.asks[0].price.ticks)
     mid = (bid + ask) // 2
-    return (mid // TICK_SIZE) * TICK_SIZE
+    return (mid // tick_size) * tick_size
 
 
 async def cancel_all_with_retry(client, symbol, name):
@@ -66,20 +82,26 @@ async def cancel_all_with_retry(client, symbol, name):
 async def place_grid_with_retry(client, symbol, name, round_num):
     for attempt in range(RETRY_MAX):
         try:
+            cfg = GRID_CONFIG[symbol]
+            tick_size = cfg["tick_size"]
+            interval_ticks = cfg["interval_ticks"]
+            qty_min = cfg["qty_min"]
+            qty_max = cfg["qty_max"]
+
             mid = await get_mid_ticks(client, symbol)
-            print(f"   [GRID] [{name}] {symbol} mid={mid/1e8:.2f}")
+            print(f"   [GRID] [{name}] {symbol} mid={mid/1e8:.4f}")
 
             items = []
             ts = int(time.time() * 1000)
 
             for i in range(1, GRIDS + 1):
-                qty = str(round(random.uniform(QTY_MIN, QTY_MAX), 2))
+                qty = str(round(random.uniform(qty_min, qty_max), 6))
 
-                buy_ticks = mid - INTERVAL_TICKS * i
-                buy_ticks = (buy_ticks // TICK_SIZE) * TICK_SIZE
+                buy_ticks = mid - interval_ticks * i
+                buy_ticks = (buy_ticks // tick_size) * tick_size
 
-                sell_ticks = mid + INTERVAL_TICKS * i
-                sell_ticks = (sell_ticks // TICK_SIZE) * TICK_SIZE
+                sell_ticks = mid + interval_ticks * i
+                sell_ticks = (sell_ticks // tick_size) * tick_size
 
                 items.append({
                     "symbol": symbol,
