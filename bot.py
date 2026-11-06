@@ -91,6 +91,9 @@ async def place_grid_with_retry(client, symbol, name, round_num):
             qty_max = cfg["qty_max"]
 
             mid = await get_mid_ticks(client, symbol)
+            # offset per akun supaya tidak tabrakan
+            acc_offset = (int(name) - 1) * tick_size
+            mid = mid + acc_offset
             print(f"   [GRID] [{name}] {symbol} mid={mid/1e8:.4f}")
 
             items = []
