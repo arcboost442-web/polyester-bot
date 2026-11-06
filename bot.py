@@ -32,6 +32,7 @@ GRID_CONFIG = {
         "interval_ticks": 1_000_000,
         "qty_min": 10.0,
         "qty_max": 50.0,
+        "grids": 5,
     },
 }
 SYMBOLS = list(GRID_CONFIG.keys())
@@ -89,6 +90,8 @@ async def place_grid_with_retry(client, symbol, name, round_num):
             interval_ticks = cfg["interval_ticks"]
             qty_min = cfg["qty_min"]
             qty_max = cfg["qty_max"]
+            grids = cfg.get("grids", GRIDS)
+            grids = cfg.get("grids", GRIDS)
 
             mid = await get_mid_ticks(client, symbol)
             # offset per akun supaya tidak tabrakan
@@ -99,7 +102,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
             items = []
             ts = int(time.time() * 1000)
 
-            for i in range(1, GRIDS + 1):
+            for i in range(1, grids + 1):
                 qty = str(round(random.uniform(qty_min, qty_max), 6))
 
                 buy_ticks = mid - interval_ticks * i
