@@ -29,7 +29,7 @@ GRID_CONFIG = {
     },
     "XRP-USDT": {
         "tick_size": 100_000,
-        "interval_ticks": 100_000,
+        "interval_ticks": 1_000_000,
         "qty_min": 10.0,
         "qty_max": 50.0,
     },
