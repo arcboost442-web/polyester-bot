@@ -23,20 +23,13 @@ GRID_CONFIG = {
     },
     "BTC-USDT": {
         "tick_size": 10_000_000,
-        "interval_ticks": 100_000_000,
+        "interval_ticks": 1_000_000_000,
         "qty_min": 0.0001,
         "qty_max": 0.0005,
         "grids": 5,
     },
-    "XRP-USDT": {
-        "tick_size": 100_000,
-        "interval_ticks": 10_000_000,
-        "qty_min": 10.0,
-        "qty_max": 30.0,
-        "grids": 5,
-    },
 }
-SYMBOLS = list(GRID_CONFIG.keys())
+SYMBOLS = ["LTC-USDT", "BTC-USDT"]
 
 STAGGER_DELAY = 15           # detik antar akun
 LOOP_DELAY_MIN = 40
