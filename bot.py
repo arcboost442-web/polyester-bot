@@ -38,9 +38,9 @@ GRID_CONFIG = {
 }
 SYMBOLS = list(GRID_CONFIG.keys())
 
-STAGGER_DELAY = 5            # detik antar akun
-LOOP_DELAY_MIN = 20
-LOOP_DELAY_MAX = 40
+STAGGER_DELAY = 15           # detik antar akun
+LOOP_DELAY_MIN = 40
+LOOP_DELAY_MAX = 60
 RETRY_MAX = 3
 RETRY_DELAY = 2
 # ====================================================
