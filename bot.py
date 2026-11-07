@@ -18,20 +18,21 @@ GRID_CONFIG = {
     "LTC-USDT": {
         "tick_size": 10_000_000,
         "interval_ticks": 10_000_000,
-        "qty_min": 0.5,
-        "qty_max": 1.5,
+        "qty_min": 2.0,
+        "qty_max": 5.0,
     },
     "BTC-USDT": {
         "tick_size": 10_000_000,
         "interval_ticks": 10_000_000,
-        "qty_min": 0.0001,
-        "qty_max": 0.001,
+        "qty_min": 0.001,
+        "qty_max": 0.005,
+        "grids": 5,
     },
     "XRP-USDT": {
         "tick_size": 100_000,
         "interval_ticks": 1_000_000,
-        "qty_min": 10.0,
-        "qty_max": 50.0,
+        "qty_min": 50.0,
+        "qty_max": 200.0,
         "grids": 5,
     },
 }
