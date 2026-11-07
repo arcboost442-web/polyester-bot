@@ -12,7 +12,7 @@ from polyester.types.money import Price
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
-GRIDS = 10
+GRIDS = 3
 
 GRID_CONFIG = {
     "LTC-USDT": {
