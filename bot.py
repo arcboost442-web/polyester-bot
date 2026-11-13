@@ -35,24 +35,24 @@ MIN_BALANCE = {
 
 # Config per pair: tick_size actual, interval, qty
 PAIR_CONFIG = {
-    "LTC-USDT":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.5,      "qty_max": 1.5},
-    "BTC-USDT":  {"tick_size": 10_000_000,  "interval": 1_000_000_000, "qty_min": 0.0001,  "qty_max": 0.0005},
-    "ETH-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
-    "SOL-USDT":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.05,     "qty_max": 0.2},
-    "SOL-USDC":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.05,     "qty_max": 0.2},
-    "XRP-USDT":  {"tick_size": 100_000,     "interval": 1_000_000,   "qty_min": 5.0,      "qty_max": 20.0},
-    "TRX-USDT":  {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 20.0,     "qty_max": 100.0},
-    "POL-USDT":  {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 5.0,      "qty_max": 20.0},
-    "HYPE-USDT": {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
-    "BNB-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.005,    "qty_max": 0.02},
-    "DOGE-USDT": {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 20.0,     "qty_max": 100.0},
-    "AVAX-USDT": {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
-    "BCH-USDT":  {"tick_size": 100_000_000, "interval": 1_000_000_000, "qty_min": 0.01,   "qty_max": 0.05},
-    "ETC-USDT":  {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
-    "ARB-USDT":  {"tick_size": 100_000,     "interval": 1_000_000,   "qty_min": 2.0,      "qty_max": 10.0},
-    "ZEC-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.01,     "qty_max": 0.05},
-    "XAUT-USDT": {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
-    "ETH-USDC":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
+    "LTC-USDT":  {"tick_size": 10_000_000,   "interval": 10_000_000,   "qty_min": 1.0,     "qty_max": 3.0},
+    "BTC-USDT":  {"tick_size": 10_000_000,   "interval": 1_000_000_000,"qty_min": 0.0001,  "qty_max": 0.0005},
+    "ETH-USDT":  {"tick_size": 20_000_000,   "interval": 20_000_000,   "qty_min": 0.002,   "qty_max": 0.008},
+    "SOL-USDT":  {"tick_size": 30_000_000,   "interval": 30_000_000,   "qty_min": 0.1,     "qty_max": 0.5},
+    "SOL-USDC":  {"tick_size": 10_000_000,   "interval": 10_000_000,   "qty_min": 0.1,     "qty_max": 0.5},
+    "XRP-USDT":  {"tick_size": 100_000,      "interval": 1_000_000,    "qty_min": 10.0,    "qty_max": 40.0},
+    "TRX-USDT":  {"tick_size": 30_000,       "interval": 300_000,      "qty_min": 50.0,    "qty_max": 200.0},
+    "POL-USDT":  {"tick_size": 10_000,       "interval": 100_000,      "qty_min": 10.0,    "qty_max": 40.0},
+    "HYPE-USDT": {"tick_size": 1_000_000,    "interval": 10_000_000,   "qty_min": 0.1,     "qty_max": 0.5},
+    "BNB-USDT":  {"tick_size": 10_000_000,   "interval": 100_000_000,  "qty_min": 0.005,   "qty_max": 0.02},
+    "DOGE-USDT": {"tick_size": 30_000,       "interval": 300_000,      "qty_min": 50.0,    "qty_max": 200.0},
+    "AVAX-USDT": {"tick_size": 1_000_000,    "interval": 10_000_000,   "qty_min": 0.1,     "qty_max": 0.5},
+    "BCH-USDT":  {"tick_size": 100_000_000,  "interval": 1_000_000_000,"qty_min": 0.01,    "qty_max": 0.05},
+    "ETC-USDT":  {"tick_size": 2_000_000,    "interval": 20_000_000,   "qty_min": 0.2,     "qty_max": 1.0},
+    "ARB-USDT":  {"tick_size": 100_000,      "interval": 1_000_000,    "qty_min": 5.0,     "qty_max": 20.0},
+    "ZEC-USDT":  {"tick_size": 20_000_000,   "interval": 200_000_000,  "qty_min": 0.01,    "qty_max": 0.05},
+    "XAUT-USDT": {"tick_size": 10_000_000,   "interval": 100_000_000,  "qty_min": 0.001,   "qty_max": 0.005},
+    "ETH-USDC":  {"tick_size": 10_000_000,   "interval": 100_000_000,  "qty_min": 0.002,   "qty_max": 0.008},
 }
 
 # Map asset_id ke asset code
@@ -63,7 +63,7 @@ ASSET_ID_MAP = {
     43: "ZEC", 15: "AVAX", 20: "BCH",
 }
 
-GRIDS = 3
+GRIDS = 5
 STAGGER_DELAY = 15
 LOOP_DELAY_MIN = 40
 LOOP_DELAY_MAX = 60
