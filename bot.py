@@ -11,25 +11,59 @@ from polyester.types.money import Price
 # ==================== PENGATURAN ====================
 ACCOUNTS_FILE = os.environ.get("ACCOUNTS_FILE", "accounts.json")
 
-# GRID CONFIG
-GRIDS = 3
-GRID_CONFIG = {
-    "LTC-USDT": {
-        "tick_size": 10_000_000,
-        "interval_ticks": 10_000_000,
-        "qty_min": 2.0,
-        "qty_max": 5.0,
-    },
-    "BTC-USDT": {
-        "tick_size": 10_000_000,
-        "interval_ticks": 1_000_000_000,
-        "qty_min": 0.0001,
-        "qty_max": 0.0005,
-        "grids": 5,
-    },
+# Minimum saldo untuk trade (dalam unit asset)
+MIN_BALANCE = {
+    "USDT": 10.0,
+    "USDC": 10.0,
+    "BTC": 0.0001,
+    "ETH": 0.001,
+    "LTC": 0.1,
+    "XRP": 5.0,
+    "TRX": 10.0,
+    "POL": 5.0,
+    "HYPE": 0.5,
+    "BNB": 0.01,
+    "SOL": 0.1,
+    "DOGE": 20.0,
+    "AVAX": 0.1,
+    "BCH": 0.01,
+    "ETC": 0.1,
+    "ARB": 1.0,
+    "ZEC": 0.01,
+    "XAUT": 0.001,
 }
-SYMBOLS = ["LTC-USDT", "BTC-USDT"]
 
+# Config per pair: tick_size actual, interval, qty
+PAIR_CONFIG = {
+    "LTC-USDT":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.5,      "qty_max": 1.5},
+    "BTC-USDT":  {"tick_size": 10_000_000,  "interval": 1_000_000_000, "qty_min": 0.0001,  "qty_max": 0.0005},
+    "ETH-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
+    "SOL-USDT":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.05,     "qty_max": 0.2},
+    "SOL-USDC":  {"tick_size": 10_000_000,  "interval": 10_000_000,  "qty_min": 0.05,     "qty_max": 0.2},
+    "XRP-USDT":  {"tick_size": 100_000,     "interval": 1_000_000,   "qty_min": 5.0,      "qty_max": 20.0},
+    "TRX-USDT":  {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 20.0,     "qty_max": 100.0},
+    "POL-USDT":  {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 5.0,      "qty_max": 20.0},
+    "HYPE-USDT": {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
+    "BNB-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.005,    "qty_max": 0.02},
+    "DOGE-USDT": {"tick_size": 10_000,      "interval": 100_000,     "qty_min": 20.0,     "qty_max": 100.0},
+    "AVAX-USDT": {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
+    "BCH-USDT":  {"tick_size": 100_000_000, "interval": 1_000_000_000, "qty_min": 0.01,   "qty_max": 0.05},
+    "ETC-USDT":  {"tick_size": 1_000_000,   "interval": 10_000_000,  "qty_min": 0.1,      "qty_max": 0.5},
+    "ARB-USDT":  {"tick_size": 100_000,     "interval": 1_000_000,   "qty_min": 2.0,      "qty_max": 10.0},
+    "ZEC-USDT":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.01,     "qty_max": 0.05},
+    "XAUT-USDT": {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
+    "ETH-USDC":  {"tick_size": 10_000_000,  "interval": 100_000_000, "qty_min": 0.001,    "qty_max": 0.005},
+}
+
+# Map asset_id ke asset code
+ASSET_ID_MAP = {
+    1: "USDT", 2: "USDC", 3: "BTC", 4: "SOL", 5: "BNB",
+    6: "ETH", 17: "XRP", 18: "LTC", 19: "DOGE", 22: "HYPE",
+    23: "ARB", 24: "POL", 25: "TRX", 26: "ETC", 40: "XAUT",
+    43: "ZEC", 15: "AVAX", 20: "BCH",
+}
+
+GRIDS = 3
 STAGGER_DELAY = 15
 LOOP_DELAY_MIN = 40
 LOOP_DELAY_MAX = 60
@@ -60,17 +94,45 @@ def load_accounts():
         return json.load(f)
 
 
+async def get_active_symbols(client) -> list:
+    """Deteksi pair yang bisa ditrading berdasarkan saldo."""
+    try:
+        balances = await client.balances.list()
+        available = {}
+        for b in balances.balances:
+            asset = ASSET_ID_MAP.get(b.asset_id)
+            if asset:
+                bal = int(b.available) / 1e18
+                if bal > 0:
+                    available[asset] = bal
+
+        active = []
+        for symbol, cfg in PAIR_CONFIG.items():
+            base, quote = symbol.split("-")
+            min_base = MIN_BALANCE.get(base, 0)
+            min_quote = MIN_BALANCE.get(quote, 0)
+
+            has_base = available.get(base, 0) >= min_base
+            has_quote = available.get(quote, 0) >= min_quote
+
+            if has_base or has_quote:
+                active.append(symbol)
+
+        return active
+    except Exception as e:
+        print(f"   [ERR] get_active_symbols: {e}")
+        return ["LTC-USDT"]  # fallback
+
+
 # ==================== GRID FUNCTIONS ====================
 
 async def get_mid_ticks(client, symbol):
-    tick_size = GRID_CONFIG[symbol]["tick_size"]
+    tick_size = PAIR_CONFIG[symbol]["tick_size"]
     ob = await client.orderbook.get(symbol=symbol)
     bid = int(ob.bids[0].price.ticks)
     ask = int(ob.asks[0].price.ticks)
     mid = (bid + ask) // 2
-    tick_size = 10_000_000
-    mid_ticks = (mid // tick_size) * tick_size
-    return mid_ticks
+    return (mid // tick_size) * tick_size
 
 
 async def cancel_all_with_retry(client, symbol, name):
@@ -92,12 +154,11 @@ async def cancel_all_with_retry(client, symbol, name):
 async def place_grid_with_retry(client, symbol, name, round_num):
     for attempt in range(RETRY_MAX):
         try:
-            cfg = GRID_CONFIG[symbol]
+            cfg = PAIR_CONFIG[symbol]
             tick_size = cfg["tick_size"]
-            interval_ticks = cfg["interval_ticks"]
+            interval_ticks = cfg["interval"]
             qty_min = cfg["qty_min"]
             qty_max = cfg["qty_max"]
-            grids = cfg.get("grids", GRIDS)
 
             mid = await get_mid_ticks(client, symbol)
             acc_offset = (int(name) - 1) * tick_size
@@ -107,7 +168,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
             items = []
             ts = int(time.time() * 1000)
 
-            for i in range(1, grids + 1):
+            for i in range(1, GRIDS + 1):
                 qty = str(round(random.uniform(qty_min, qty_max), 6))
 
                 buy_ticks = mid - interval_ticks * i
@@ -116,7 +177,6 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                 sell_ticks = mid + interval_ticks * i
                 sell_ticks = (sell_ticks // tick_size) * tick_size
 
-                post_only = True
                 items.append({
                     "symbol": symbol,
                     "side": "buy",
@@ -124,7 +184,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                     "tif": "gtc",
                     "qty": qty,
                     "price": Price(ticks=int(buy_ticks)),
-                    "post_only": post_only,
+                    "post_only": True,
                     "client_order_id": f"grid-{name}-{round_num}-buy-{i}-{ts}",
                 })
                 items.append({
@@ -134,7 +194,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                     "tif": "gtc",
                     "qty": qty,
                     "price": Price(ticks=int(sell_ticks)),
-                    "post_only": post_only,
+                    "post_only": True,
                     "client_order_id": f"grid-{name}-{round_num}-sell-{i}-{ts}",
                 })
 
@@ -149,7 +209,7 @@ async def place_grid_with_retry(client, symbol, name, round_num):
                     print(f"   [RETRY] [{name}] attempt {attempt+1}/{RETRY_MAX}: {err[:60]}")
                     await asyncio.sleep(RETRY_DELAY)
                 else:
-                    print(f"   [ERR] [{name}] {symbol} gagal setelah {RETRY_MAX}x: {err[:60]}")
+                    print(f"   [ERR] [{name}] {symbol} gagal: {err[:60]}")
             else:
                 print(f"   [ERR] [{name}] {symbol}: {err[:80]}")
                 return 0
@@ -180,19 +240,16 @@ async def run_grid_loop(account: dict, index: int):
             ) as client:
                 await client.wait_for_catalogs()
 
-                try:
-                    await client.balances.list()
-                except Exception as e:
-                    print(f"   [ERR] [{name}] Balances error: {e}")
-                    await asyncio.sleep(30)
-                    continue
+                # Auto-detect pair berdasarkan saldo
+                symbols = await get_active_symbols(client)
+                print(f"   [PAIRS] [{name}] aktif: {symbols}")
 
-                for symbol in SYMBOLS:
+                for symbol in symbols:
                     await cancel_all_with_retry(client, symbol, name)
 
                 await asyncio.sleep(1)
 
-                for symbol in SYMBOLS:
+                for symbol in symbols:
                     ok = await place_grid_with_retry(client, symbol, name, round_num)
                     total_success += ok
 
@@ -347,7 +404,7 @@ async def main():
         return
 
     print(f"Total akun: {len(accounts)}")
-    print(f"Mode: GRID + TWAP | LTC-USDT & BTC-USDT\n")
+    print(f"Mode: GRID AUTO-DETECT + TWAP | All pairs\n")
 
     tasks = []
     for i, acc in enumerate(accounts):
